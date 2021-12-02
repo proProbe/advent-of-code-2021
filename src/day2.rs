@@ -86,12 +86,10 @@ impl Sub for SubMarine1D {
 
 fn dive_and_get_position(input: &str, sub: &mut impl Sub) -> usize {
     let movements = input.lines().map(|line| {
-        let m: Vec<&str> = line.split_whitespace().collect();
-        let direction: &str = m.get(0).unwrap();
-        let distance = m
-            .get(1)
-            .map(|d| d.parse::<usize>().expect("Failed to parse distance"))
-            .unwrap_or_else(|| 0);
+        let (direction, _distance) = line.split_once(" ").unwrap();
+        let distance = _distance
+            .parse::<usize>()
+            .expect("Failed to parse distance");
 
         match direction {
             "forward" => Move::Forward(distance),
