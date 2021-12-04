@@ -1,3 +1,5 @@
+#![feature(drain_filter)]
+
 use advent_of_code_2021::{day1, day2, day3};
 use anyhow::{anyhow, Result};
 use std::path::Path;
