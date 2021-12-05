@@ -351,7 +351,7 @@ mod tests {
         let board_rep = vec!["1 2 3", "4 5 6", "10 11 12"];
         let board = Board::new(&board_rep);
 
-        assert_eq!(board.pos(&12), Some((2, 2)));
+        assert_eq!(board.pos(&11), Some((2, 1)));
         assert_eq!(board.pos(&4), Some((1, 0)));
         Ok(())
     }
