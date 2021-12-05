@@ -1,13 +1,31 @@
-use anyhow::{Error, Result};
-use std::collections::HashMap;
+use anyhow::{anyhow, Error, Result};
 use std::fs;
 use std::path::Path;
-use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Board {
     size: usize,
     grid: Vec<Vec<(usize, bool)>>,
+}
+
+impl ToString for Board {
+    fn to_string(&self) -> String {
+        let mut repr = String::from("");
+        for row in 0..self.size {
+            for col in 0..self.size {
+                let (v, marked) = &self.grid[row][col];
+                repr.push_str(&format!("({}, {})", v, marked));
+            }
+            repr.push_str("|");
+        }
+        repr
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Direction {
+    Column,
+    Row,
 }
 
 impl Board {
@@ -26,56 +44,46 @@ impl Board {
         Board { size, grid }
     }
 
-    fn mark(&mut self, x: usize, y: usize) {
-        let (v, _) = self.grid[y][x];
-        self.grid[y][x] = (v, true);
+    fn iterate_over(
+        &self,
+        direction: Direction,
+    ) -> impl Iterator<Item = (usize, bool, (usize, usize))> + '_ {
+        (0..self.size).flat_map(move |row| {
+            (0..self.size).map(move |col| {
+                match direction {
+                    Direction::Row => {
+                        let (v, b) = self.grid[row][col];
+                        return (v, b, (row, col));
+                    }
+                    Direction::Column => {
+                        let (v, b) = self.grid[col][row];
+                        return (v, b, (row, col));
+                    }
+                };
+            })
+        })
     }
 
-    fn pos(&self, num: usize) -> Option<(usize, usize)> {
-        for x in 0..self.size {
-            for y in 0..self.size {
-                let (v, _) = self.grid[x][y];
+    fn mark(&mut self, row: usize, col: usize) {
+        let (v, _) = self.grid[row][col];
+        self.grid[row][col] = (v, true);
+    }
 
-                if v == num {
-                    return Some((y, x));
-                }
+    fn pos(&self, num: &usize) -> Option<(usize, usize)> {
+        for (v, _, (row, col)) in self.iterate_over(Direction::Row) {
+            if v == *num {
+                return Some((row, col));
             }
         }
 
         None
     }
 
-    fn get_board_str(&self) -> String {
-        let mut repr = String::from("");
-        for x in 0..self.size {
-            for y in 0..self.size {
-                let (v, marked) = &self.grid[x][y];
-                repr.push_str("(");
-                repr.push_str(v.to_string().as_str());
-                repr.push_str(", ");
-                repr.push_str(marked.to_string().as_str());
-                repr.push_str(")");
-            }
-            repr.push_str("|");
-        }
-        repr.clone()
-    }
-
-    fn print(&self) {
-        let to_str = |(v, b)| (v, if b { 'O' } else { '_' });
-
-        let vec_str = |v| v.iter().map(to_str).collections::<Vec<_>>();
-        println!(
-            "{:?} \n {:?} \n {:?} \n {:?} \n {:?}",
-            self.grid[0], self.grid[1], self.grid[2], self.grid[3], self.grid[4]
-        )
-    }
-
     fn has_bingo(&self) -> bool {
-        for i in 0..self.size {
+        for row in 0..self.size {
             let mut possible_bingo = true;
-            for j in 0..self.size {
-                let (_, marked) = &self.grid[i][j];
+            for col in 0..self.size {
+                let (_, marked) = &self.grid[row][col];
                 if possible_bingo {
                     possible_bingo = *marked;
                 } else {
@@ -87,8 +95,8 @@ impl Board {
             }
 
             possible_bingo = true;
-            for j in 0..self.size {
-                let (_, marked) = &self.grid[j][i];
+            for col in 0..self.size {
+                let (_, marked) = &self.grid[col][row];
                 if possible_bingo {
                     possible_bingo = *marked;
                 } else {
@@ -103,15 +111,16 @@ impl Board {
     }
 
     fn sum_unmarked(&self) -> usize {
-        let mut sum = 0;
-        for col in self.grid.iter() {
-            for (v, marked) in col {
-                if *marked == false {
-                    sum += v;
+        self.iterate_over(Direction::Row).fold(
+            0,
+            |acc, (v, marked, (_, _))| {
+                if marked == false {
+                    acc + v
+                } else {
+                    acc
                 }
-            }
-        }
-        sum
+            },
+        )
     }
 }
 
@@ -129,25 +138,9 @@ fn find_bingo_board(boards: &Vec<Board>) -> Option<&Board> {
     bingo_board
 }
 
-fn part_one(path: &Path) -> Result<(usize, Option<usize>)> {
-    let _data = fs::read_to_string(path).expect("Failed to read");
-
-    let mut data = _data.split("\n\n");
-
-    let inputs = data
-        .next()
-        .map(|x| {
-            x.split(',')
-                .map(|x| x.parse::<usize>().unwrap())
-                .collect::<Vec<usize>>()
-        })
-        .unwrap();
-
-    let mut bingo_board: Option<(&Board, usize)> = None;
-
-    let mut boards = data
-        .map(|str| -> Board { Board::new(&str.lines().collect()) })
-        .collect::<Vec<Board>>();
+fn part_one(boards: &Vec<Board>, inputs: &Vec<usize>) -> Result<usize, Error> {
+    let mut boards = boards.clone();
+    let mut bingo_board: Option<(&Board, &usize)> = None;
 
     for number in inputs {
         if bingo_board.is_some() {
@@ -157,7 +150,7 @@ fn part_one(path: &Path) -> Result<(usize, Option<usize>)> {
         for board in boards.iter_mut() {
             let pos = board.pos(number);
             match pos {
-                Some((x, y)) => board.mark(x, y),
+                Some((row, col)) => board.mark(row, col),
                 None => (),
             }
         }
@@ -166,15 +159,38 @@ fn part_one(path: &Path) -> Result<(usize, Option<usize>)> {
     }
 
     match bingo_board {
-        Some((b, num)) => Ok((b.sum_unmarked() * num, None)),
-        None => Ok((0, None)),
+        Some((b, num)) => Ok(b.sum_unmarked() * num),
+        None => Err(anyhow!("No answer for part_one")),
     }
 }
 
-pub fn main(path: &Path) -> Result<(usize, Option<usize>)> {
-    let _data = fs::read_to_string(path).expect("Failed to read");
+fn part_two(boards: &Vec<Board>, inputs: &Vec<usize>) -> usize {
+    let mut copy_boards = boards.clone();
+    for number in inputs {
+        for board in copy_boards.iter_mut() {
+            let pos = board.pos(number);
+            match pos {
+                Some((row, col)) => board.mark(row, col),
+                None => (),
+            }
+        }
 
-    let mut data = _data.split("\n\n");
+        if copy_boards.len() > 1 {
+            copy_boards.retain(|b| b.has_bingo() == false);
+        }
+
+        if copy_boards.len() == 1 {
+            if copy_boards[0].has_bingo() {
+                return copy_boards[0].sum_unmarked() * number;
+            }
+        }
+    }
+    0
+}
+
+pub fn main(path: &Path) -> Result<(usize, Option<usize>)> {
+    let read_data = fs::read_to_string(path).expect("Failed to read");
+    let mut data = read_data.split("\n\n");
 
     let inputs = data
         .next()
@@ -185,43 +201,82 @@ pub fn main(path: &Path) -> Result<(usize, Option<usize>)> {
         })
         .unwrap();
 
-    let mut finished_boards: Vec<usize> = Vec::new();
-
-    let mut boards = data
+    let boards = data
         .map(|str| -> Board { Board::new(&str.lines().collect()) })
         .collect::<Vec<Board>>();
 
-    for number in inputs {
-        println!("iter: {}", number);
-        let non_bingo_boards = boards.iter_mut().filter(|b| b.has_bingo() == false);
-
-        for board in non_bingo_boards {
-            let pos = board.pos(number);
-            match pos {
-                Some((x, y)) => board.mark(x, y),
-                None => (),
-            }
-        }
-
-        let bingo_board = find_bingo_board(&boards).map(|b| (b, number));
-
-        match bingo_board {
-            Some((b, num)) => {
-                b.print();
-                finished_boards.push(b.sum_unmarked() * num)
-            }
-            None => (),
-        }
-    }
-
-    let sum = finished_boards.last().unwrap();
-
-    Ok((*sum, None))
+    Ok((
+        part_one(&boards, &inputs)?,
+        Some(part_two(&boards, &inputs)),
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const DATA: &str = "7,4,9,5,11,17,23,2,0,14,21,24,10,16,13,6,15,25,12,22,18,20,8,19,3,26,1\n\n\
+                        22 13 17 11  0\n\
+                        8  2 23  4 24\n\
+                        21  9 14 16  7\n\
+                        6 10  3 18  5\n\
+                        1 12 20 15 19\n\n\
+                        3 15  0  2 22\n\
+                        9 18 13 17  5\n\
+                        19  8  7 25 23\n\
+                        20 11 10 24  4\n\
+                        14 21 16 12  6\n\n\
+                        14 21 17 24  4\n\
+                        10 16 15  9 19\n\
+                        18  8 23 26 20\n\
+                        22 11 13  6  5\n\
+                        2  0 12  3  7";
+    #[test]
+    fn test_part_one() -> Result<()> {
+        let mut data = DATA.split("\n\n");
+
+        let inputs = data
+            .next()
+            .map(|x| {
+                x.split(',')
+                    .map(|x| x.parse::<usize>().unwrap())
+                    .collect::<Vec<usize>>()
+            })
+            .unwrap();
+
+        let boards = data
+            .map(|str| -> Board { Board::new(&str.lines().collect()) })
+            .collect::<Vec<Board>>();
+
+        let v = part_one(&boards, &inputs)?;
+
+        assert_eq!(v, 4512);
+        Ok(())
+    }
+
+    #[test]
+    fn test_part_two() -> Result<()> {
+        let mut data = DATA.split("\n\n");
+
+        let inputs = data
+            .next()
+            .map(|x| {
+                x.split(',')
+                    .map(|x| x.parse::<usize>().unwrap())
+                    .collect::<Vec<usize>>()
+            })
+            .unwrap();
+
+        let boards = data
+            .map(|str| -> Board { Board::new(&str.lines().collect()) })
+            .collect::<Vec<Board>>();
+
+        let v = part_two(&boards, &inputs);
+
+        assert_eq!(v, 1924);
+        Ok(())
+    }
+
     #[test]
     fn test_board_find_bingo_board() -> Result<()> {
         let board_rep1 = vec!["1 2 3", "4 5 6", "10 11 12"];
@@ -242,7 +297,7 @@ mod tests {
     fn test_board_creation() -> Result<()> {
         let board_rep = vec!["1 2 3", "4 5 6", "10 11 12"];
         let board = Board::new(&board_rep);
-        assert_eq!(board.get_board_str(), "(1, false)(2, false)(3, false)|(4, false)(5, false)(6, false)|(10, false)(11, false)(12, false)|");
+        assert_eq!(board.to_string(), "(1, false)(2, false)(3, false)|(4, false)(5, false)(6, false)|(10, false)(11, false)(12, false)|");
         Ok(())
     }
 
@@ -253,7 +308,7 @@ mod tests {
         board.mark(0, 0);
         board.mark(0, 1);
 
-        assert_eq!(board.get_board_str(), "(1, true)(2, false)(3, false)|(4, true)(5, false)(6, false)|(10, false)(11, false)(12, false)|");
+        assert_eq!(board.to_string(), "(1, true)(2, true)(3, false)|(4, false)(5, false)(6, false)|(10, false)(11, false)(12, false)|");
         Ok(())
     }
 
@@ -296,8 +351,8 @@ mod tests {
         let board_rep = vec!["1 2 3", "4 5 6", "10 11 12"];
         let board = Board::new(&board_rep);
 
-        assert_eq!(board.pos(12), Some((2, 2)));
-        assert_eq!(board.pos(4), Some((0, 1)));
+        assert_eq!(board.pos(&12), Some((2, 2)));
+        assert_eq!(board.pos(&4), Some((1, 0)));
         Ok(())
     }
 }
