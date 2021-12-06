@@ -64,9 +64,9 @@ impl Vent {
         let is_y = self.start.y == self.end.y;
         if is_y {
             let range = if self.start.x < self.end.x {
-                self.start.x..self.end.x + 1
+                self.start.x..=self.end.x
             } else {
-                self.end.x..self.start.x + 1
+                self.end.x..=self.start.x
             };
 
             return range
@@ -74,9 +74,9 @@ impl Vent {
                 .collect::<Vec<Point>>();
         } else if self.start.x == self.end.x {
             let range = if self.start.y < self.end.y {
-                self.start.y..self.end.y + 1
+                self.start.y..=self.end.y
             } else {
-                self.end.y..self.start.y + 1
+                self.end.y..=self.start.y
             };
 
             return range
@@ -87,7 +87,7 @@ impl Vent {
 
             let x_diff = self.end.x - self.start.x;
 
-            return (0..x_diff.abs() + 1)
+            return (0..=x_diff.abs())
                 .map(|x: isize| -> Point {
                     Point {
                         x: self.start.x + x_direction * x,
