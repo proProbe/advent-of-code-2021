@@ -7,6 +7,7 @@ fn triangle_number(n: usize) -> usize {
     (1..=n).fold(0, |sum, i| sum + i)
 }
 
+// TODO: Have this function return f32 instead?
 fn mean(values: &Vec<usize>) -> usize {
     let sum = values.iter().sum::<usize>();
     let n = values.len();
@@ -25,6 +26,7 @@ fn part_one(crabs: &mut Vec<usize>) -> usize {
     crabs
         .iter()
         .map(|crab_y| -> usize {
+            // TODO: how to properly take 'abs' of (usize - usize)?
             if target_y > *crab_y {
                 target_y - crab_y
             } else {
@@ -55,6 +57,7 @@ fn part_two(crabs: &mut Vec<usize>) -> usize {
     let fst = calc(m);
     let snd = calc(m + 1); // + 1 as mean() rounds down
 
+    // TODO: would rather return a min(fst, snd) here :D
     if fst > snd {
         snd
     } else {
